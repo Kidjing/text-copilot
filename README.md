@@ -1,4 +1,4 @@
-# AI 智能文本补全 Demo
+# AI 智能文本补全演示项目
 
 使用 **Ollama + TipTap** 实现的代码智能补全演示项目。
 
@@ -84,7 +84,7 @@ npm run dev
 text-completion-demo/
 ├── src/
 │   ├── components/
-│   │   ├── CodeEditor.tsx    # Monaco 编辑器组件
+│   │   ├── RichTextEditor.tsx    # 编辑器组件
 │   │   ├── StatusBar.tsx     # 状态栏组件
 │   │   └── SettingsPanel.tsx # 设置面板组件
 │   ├── hooks/
