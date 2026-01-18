@@ -106,10 +106,26 @@ export const GhostTextExtension = Extension.create<GhostTextOptions, GhostTextSt
           this.storage.ghostText = '';
           this.storage.position = 0;
 
-          // 在指定位置插入文本
+          // 将换行符转换为段落结构以正确插入
+          // TipTap 需要将 \n 转换为 HTML 段落或使用硬换行
+          const lines = ghostText.split('\n');
+          let content: string | Array<{ type: string; content?: Array<{ type: string; text: string }> }>;
+          
+          if (lines.length > 1) {
+            // 多行内容：转换为段落数组
+            content = lines.map((line) => ({
+              type: 'paragraph',
+              content: line ? [{ type: 'text', text: line }] : [],
+            }));
+          } else {
+            // 单行内容：直接使用文本
+            content = ghostText;
+          }
+
+          // 在指定位置插入内容
           return chain()
             .focus()
-            .insertContentAt(position, ghostText)
+            .insertContentAt(position, content)
             .run();
         },
     };
@@ -140,7 +156,16 @@ export const GhostTextExtension = Extension.create<GhostTextOptions, GhostTextSt
             const widget = Decoration.widget(position, () => {
               const span = document.createElement('span');
               span.className = className;
-              span.textContent = ghostText;
+              // 转义 HTML 特殊字符并将换行符转换为 <br> 标签
+              const escapeHtml = (text: string) => {
+                return text
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#039;');
+              };
+              span.innerHTML = escapeHtml(ghostText).replace(/\n/g, '<br>');
               return span;
             }, {
               side: 1, // 放在光标后面
