@@ -330,13 +330,6 @@ const RichTextEditor = ({
           pointer-events: none;
           user-select: none;
           white-space: pre-wrap;
-          display: inline;
-        }
-        
-        /* 幽灵文本中的换行 */
-        .ghost-text br {
-          display: block;
-          content: "";
         }
 
         /* 选中文本样式 */

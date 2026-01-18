@@ -154,9 +154,7 @@ export const GhostTextExtension = Extension.create<GhostTextOptions, GhostTextSt
 
             // 创建一个 widget decoration 来显示幽灵文本
             const widget = Decoration.widget(position, () => {
-              const span = document.createElement('span');
-              span.className = className;
-              // 转义 HTML 特殊字符并将换行符转换为 <br> 标签
+              // 转义 HTML 特殊字符
               const escapeHtml = (text: string) => {
                 return text
                   .replace(/&/g, '&amp;')
@@ -165,8 +163,37 @@ export const GhostTextExtension = Extension.create<GhostTextOptions, GhostTextSt
                   .replace(/"/g, '&quot;')
                   .replace(/'/g, '&#039;');
               };
-              span.innerHTML = escapeHtml(ghostText).replace(/\n/g, '<br>');
-              return span;
+              
+              // 按换行符分割文本
+              const lines = ghostText.split('\n');
+              
+              // 创建容器
+              const container = document.createElement('span');
+              container.className = className;
+              container.style.whiteSpace = 'pre-wrap';
+              
+              if (lines.length === 1) {
+                // 单行：直接设置文本
+                container.textContent = ghostText;
+              } else {
+                // 多行：第一行用 span（行内），后续行用 div（块级）实现换行
+                lines.forEach((line, index) => {
+                  if (index === 0) {
+                    // 第一行：行内文本，紧跟光标
+                    const firstLine = document.createElement('span');
+                    firstLine.textContent = line;
+                    container.appendChild(firstLine);
+                  } else {
+                    // 后续行：使用 div 块级元素，自动换行到行首
+                    const lineDiv = document.createElement('div');
+                    lineDiv.style.cssText = 'margin: 0; padding: 0;';
+                    lineDiv.textContent = line || '\u200B'; // 空行用零宽空格占位
+                    container.appendChild(lineDiv);
+                  }
+                });
+              }
+              
+              return container;
             }, {
               side: 1, // 放在光标后面
               key: 'ghost-text-widget',
