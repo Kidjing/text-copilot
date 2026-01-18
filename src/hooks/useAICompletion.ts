@@ -1,12 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import type {
-  OllamaGenerateRequest,
-  OllamaGenerateResponse,
   OpenAICompletionRequest,
   OpenAICompletionResponse,
   CompletionConfig,
   CompletionResult,
   CompletionStatus,
+  FIMContext,
 } from '../types';
 import { DEFAULT_COMPLETION_CONFIG } from '../types';
 import { getCompletionConfig } from '../utils/config';
@@ -18,7 +17,7 @@ interface UseAICompletionOptions {
 }
 
 interface UseAICompletionReturn {
-  requestCompletion: (context: string) => Promise<string>;
+  requestCompletion: (context: FIMContext) => Promise<string>;
   cancelCompletion: () => void;
   status: CompletionStatus;
   error: string | null;
@@ -75,12 +74,12 @@ export const useAICompletion = (
    * 请求补全
    */
   const requestCompletion = useCallback(
-    async (context: string): Promise<string> => {
+    async (context: FIMContext): Promise<string> => {
       // 取消之前的请求
       cancelCompletion();
 
       // 如果上下文太短，不请求补全
-      if (context.trim().length < 2) {
+      if (context.prefix.trim().length < 2) {
         return '';
       }
 
@@ -94,22 +93,12 @@ export const useAICompletion = (
       const startTime = Date.now();
 
       try {
-        let completion = '';
-
-        // 根据配置的 provider 选择不同的 API
-        if (config.provider === 'openai') {
-          completion = await requestOpenAICompletion(
-            context,
-            config,
-            abortControllerRef.current.signal
-          );
-        } else {
-          completion = await requestOllamaCompletion(
-            context,
-            config,
-            abortControllerRef.current.signal
-          );
-        }
+        // 使用统一的请求函数
+        let completion = await requestAICompletion(
+          context,
+          config,
+          abortControllerRef.current.signal
+        );
 
         const duration = Date.now() - startTime;
 
@@ -205,70 +194,71 @@ const cleanCompletionText = (text: string, stopSequences: string[]): string => {
 };
 
 /**
- * 请求 Ollama 补全
+ * 构建 FIM 格式的 prompt
+ * 根据 suffix 是否有值自动判断模式：
+ * - 补全模式（suffix 有值）：<|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>
+ * - 续写模式（suffix 为空）：<|fim_prefix|>{prefix}<|fim_middle|>
  */
-async function requestOllamaCompletion(
-  context: string,
-  config: CompletionConfig,
-  signal: AbortSignal
-): Promise<string> {
-  const prompt = `请续写以下内容，直接输出续写部分，不要重复原文，不要解释：
-
-${context}`;
-
-  const requestBody: OllamaGenerateRequest = {
-    model: config.model,
-    prompt,
-    stream: false,
-    options: {
-      temperature: config.temperature,
-      num_predict: config.maxTokens,
-      stop: config.stopSequences,
-      top_p: 0.95,
-    },
-  };
-
-  // 发送请求到 Ollama API
-  // 使用 Vite 代理避免 CORS 问题
-  const response = await fetch('/api/ollama/api/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Ollama API 错误: ${response.status} ${response.statusText}`);
+const buildFIMPrompt = (context: FIMContext): string => {
+  const { prefix, suffix } = context;
+  
+  // 根据 suffix 是否有实际内容判断模式
+  const hasSuffix = suffix && suffix.trim().length > 0;
+  
+  if (hasSuffix) {
+    // 补全模式（填充光标前后之间的内容）
+    return `<|fim_prefix|>${prefix}<|fim_suffix|>${suffix}<|fim_middle|>`;
+  } else {
+    // 续写模式（在光标位置继续生成）
+    return `<|fim_prefix|>${prefix}<|fim_middle|>`;
   }
-
-  const data: OllamaGenerateResponse = await response.json();
-  return data.response || '';
-}
+};
 
 /**
- * 请求 OpenAI 补全
+ * 统一的 AI 补全请求函数
+ * Ollama 和 OpenAI 都使用 OpenAI 兼容的 chat/completions 接口
  */
-async function requestOpenAICompletion(
-  context: string,
+async function requestAICompletion(
+  context: FIMContext,
   config: CompletionConfig,
   signal: AbortSignal
 ): Promise<string> {
-  if (!config.openai?.apiKey) {
-    throw new Error('OpenAI API Key 未配置');
+  const prompt = buildFIMPrompt(context);
+
+  // 根据 provider 确定 API 地址和请求头
+  let apiUrl: string;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (config.provider === 'openai') {
+    if (!config.openai?.apiKey) {
+      throw new Error('OpenAI API Key 未配置');
+    }
+    apiUrl = `${config.openai.baseUrl}/chat/completions`;
+    headers['Authorization'] = `Bearer ${config.openai.apiKey}`;
+  } else {
+    // Ollama 使用 OpenAI 兼容接口
+    // 开发环境使用 Vite 代理避免 CORS 问题，生产环境直接使用配置的 baseUrl
+    const isDev = import.meta.env.DEV;
+    const baseUrl = config.ollama?.baseUrl || 'http://localhost:11434';
+    
+    if (isDev && baseUrl === 'http://localhost:11434') {
+      // 本地开发使用代理
+      apiUrl = '/api/ollama/v1/chat/completions';
+    } else {
+      // 生产环境或自定义地址直接请求
+      apiUrl = `${baseUrl}/v1/chat/completions`;
+    }
   }
 
+  // 统一的请求体格式（OpenAI 兼容）
   const requestBody: OpenAICompletionRequest = {
     model: config.model,
     messages: [
       {
-        role: 'system',
-        content: '你是一个代码补全助手。请根据用户提供的上下文，续写代码或文本。只输出续写的部分，不要重复原文，不要添加解释。',
-      },
-      {
         role: 'user',
-        content: `请续写以下内容：\n\n${context}`,
+        content: prompt,
       },
     ],
     temperature: config.temperature,
@@ -277,19 +267,17 @@ async function requestOpenAICompletion(
     stream: false,
   };
 
-  const response = await fetch(`${config.openai.baseUrl}/chat/completions`, {
+  const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.openai.apiKey}`,
-    },
+    headers,
     body: JSON.stringify(requestBody),
     signal,
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`OpenAI API 错误: ${response.status} ${errorText}`);
+    const providerName = config.provider === 'openai' ? 'OpenAI' : 'Ollama';
+    throw new Error(`${providerName} API 错误: ${response.status} ${errorText}`);
   }
 
   const data: OpenAICompletionResponse = await response.json();

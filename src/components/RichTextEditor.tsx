@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { GhostTextExtension } from '../extensions';
+import type { FIMContext } from '../types';
 
 /**
  * 智能构建补全上下文
@@ -42,8 +43,8 @@ const buildSmartContext = (text: string, cursorPos: number): string => {
 interface RichTextEditorProps {
   /** 初始值 */
   defaultValue?: string;
-  /** 补全请求函数 */
-  onCompletionRequest: (context: string) => Promise<string>;
+  /** 补全请求函数，接收 FIMContext（包含 prefix 和 suffix） */
+  onCompletionRequest: (context: FIMContext) => Promise<string>;
   /** 是否正在加载补全 */
   isLoading?: boolean;
   /** 防抖延迟（毫秒） */
@@ -190,23 +191,29 @@ const RichTextEditor = ({
     // 获取光标前的文本作为上下文
     const { from } = editor.state.selection;
     
-    // 直接从 ProseMirror 文档中提取光标前的文本
-    // 这比手动计算位置更可靠
+    // 直接从 ProseMirror 文档中提取光标前后的文本
     const textBeforeCursor = editor.state.doc.textBetween(0, from, '\n');
+    const docLength = editor.state.doc.content.size;
+    const textAfterCursor = editor.state.doc.textBetween(from, docLength, '\n');
     
-    // 使用智能上下文构建
-    const context = buildSmartContext(textBeforeCursor, textBeforeCursor.length);
+    // prefix 是光标前的完整内容（不截断）
+    const prefix = textBeforeCursor;
+    // suffix 是光标后的内容
+    const suffix = textAfterCursor;
 
-    // 如果上下文太短或与上次相同，不请求
-    if (context.trim().length < 3) return;
-    if (context === lastContextRef.current) return;
+    // 使用智能上下文判断是否需要请求（只用于去重判断，不影响实际传递的内容）
+    const currentLineContext = buildSmartContext(textBeforeCursor, textBeforeCursor.length);
 
-    lastContextRef.current = context;
+    // 如果当前行上下文太短或与上次相同，不请求
+    if (currentLineContext.trim().length < 3) return;
+    if (currentLineContext === lastContextRef.current) return;
+
+    lastContextRef.current = currentLineContext;
     setInternalLoading(true);
     setHasCompletion(false);
 
     try {
-      const completion = await onCompletionRequest(context);
+      const completion = await onCompletionRequest({ prefix, suffix });
 
       if (completion && completion.trim() && editor) {
         // 检查光标位置是否变化

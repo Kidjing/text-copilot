@@ -1,6 +1,16 @@
 /** API 提供商类型 */
 export type ApiProvider = 'ollama' | 'openai';
 
+
+
+/** FIM 上下文 */
+export interface FIMContext {
+  /** 光标前的文本（前缀） */
+  prefix: string;
+  /** 光标后的文本（后缀），续写模式下为空 */
+  suffix?: string;
+}
+
 /** Ollama API 请求参数 */
 export interface OllamaGenerateRequest {
   model: string;
@@ -92,6 +102,7 @@ export interface CompletionConfig {
   maxTokens: number;
   temperature: number;
   debounceMs: number;
+  /** 停止序列：模型生成遇到这些字符串时会停止 */
   stopSequences: string[];
   // OpenAI 特有配置
   openai?: {
@@ -123,6 +134,7 @@ export const DEFAULT_COMPLETION_CONFIG: CompletionConfig = {
   maxTokens: 64,
   temperature: 0.2,
   debounceMs: 500,
+  /** 停止序列：遇到换行、代码块、字符串等停止生成 */
   stopSequences: ['\n\n', '```', '"""', "'''"],
   ollama: {
     baseUrl: 'http://localhost:11434',

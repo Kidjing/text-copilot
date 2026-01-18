@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect } from 'react';
 import { RichTextEditor, StatusBar, SettingsPanel } from './components';
 import { useAICompletion, useAIStatus } from './hooks';
 import { DEFAULT_COMPLETION_CONFIG } from './types';
+import type { FIMContext } from './types';
 
 // 示例文本（适合富文本场景）
-const EXAMPLE_TEXT = `🤖 AI 智能文本补全 Demo
+const EXAMPLE_TEXT = `🤖 AI 智能文本补全系统
 
 在下方输入文字，AI 会自动提供补全建议。
 按 Tab 键采纳补全，按 Esc 键取消。
@@ -83,10 +84,11 @@ const App = () => {
    * 处理补全请求
    */
   const handleCompletionRequest = useCallback(
-    async (context: string): Promise<string> => {
+    async (context: FIMContext): Promise<string> => {
       if (!isConnected) {
         return '';
       }
+      // 直接传递 FIMContext（包含 prefix 和 suffix）
       return requestCompletion(context);
     },
     [isConnected, requestCompletion]
