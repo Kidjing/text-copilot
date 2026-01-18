@@ -125,4 +125,3 @@ ollama serve
 ## License
 
 MIT
-# text-copilot
