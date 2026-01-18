@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { RichTextEditor, StatusBar, SettingsPanel } from './components';
-import { useOllamaCompletion, useOllamaStatus } from './hooks';
+import { useAICompletion, useAIStatus } from './hooks';
 import { DEFAULT_COMPLETION_CONFIG } from './types';
 
 // 示例文本（适合富文本场景）
@@ -20,14 +20,14 @@ const EXAMPLE_TEXT = `🤖 AI 智能文本补全 Demo
  * 主应用组件
  */
 const App = () => {
-  // Ollama 服务状态
+  // AI 服务状态
   const {
     isConnected,
     isChecking,
     models,
     error: connectionError,
     refreshModels,
-  } = useOllamaStatus();
+  } = useAIStatus();
 
   // 补全配置状态
   const [selectedModel, setSelectedModel] = useState(DEFAULT_COMPLETION_CONFIG.model);
@@ -36,13 +36,13 @@ const App = () => {
   const [debounceMs, setDebounceMs] = useState(DEFAULT_COMPLETION_CONFIG.debounceMs);
   const [settingsExpanded, setSettingsExpanded] = useState(false);
 
-  // Ollama 补全 Hook
+  // AI 补全 Hook
   const {
     requestCompletion,
     status: completionStatus,
     error: completionError,
     updateConfig,
-  } = useOllamaCompletion({
+  } = useAICompletion({
     config: {
       model: selectedModel,
       temperature,
@@ -113,11 +113,11 @@ const App = () => {
               <span>AI 智能文本补全</span>
             </h1>
             <p className="mt-1 text-sm text-gray-400">
-              使用 Ollama 大模型提供实时文本补全
+              支持多种 AI API 提供商（Ollama、OpenAI 等）
             </p>
           </div>
           <div className="flex items-center gap-4">
-            {/* Ollama 链接 */}
+            {/* AI 服务链接 */}
             <a
               href="https://ollama.ai"
               target="_blank"
@@ -161,9 +161,9 @@ const App = () => {
           <div className="flex items-start gap-3">
             <span className="text-2xl">⚠️</span>
             <div>
-              <h3 className="font-semibold">无法连接到 Ollama 服务</h3>
+              <h3 className="font-semibold">无法连接到 AI 服务</h3>
               <p className="mt-1 text-sm text-yellow-400/80">
-                请确保 Ollama 已安装并正在运行。你可以通过以下步骤启动：
+                请确保 AI 服务已配置并正在运行。如果使用 Ollama，请按以下步骤启动：
               </p>
               <ol className="mt-2 list-inside list-decimal text-sm text-yellow-400/80">
                 <li>
@@ -219,7 +219,7 @@ const App = () => {
             </span>
           </div>
           <span className="text-gray-500">
-            基于 TipTap + Ollama
+            基于 TipTap + AI
           </span>
         </div>
       </footer>

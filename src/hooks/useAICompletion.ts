@@ -2,19 +2,22 @@ import { useState, useCallback, useRef } from 'react';
 import type {
   OllamaGenerateRequest,
   OllamaGenerateResponse,
+  OpenAICompletionRequest,
+  OpenAICompletionResponse,
   CompletionConfig,
   CompletionResult,
   CompletionStatus,
 } from '../types';
 import { DEFAULT_COMPLETION_CONFIG } from '../types';
+import { getCompletionConfig } from '../utils/config';
 
-interface UseOllamaCompletionOptions {
+interface UseAICompletionOptions {
   config?: Partial<CompletionConfig>;
   onCompletionStart?: () => void;
   onCompletionEnd?: (result: CompletionResult) => void;
 }
 
-interface UseOllamaCompletionReturn {
+interface UseAICompletionReturn {
   requestCompletion: (context: string) => Promise<string>;
   cancelCompletion: () => void;
   status: CompletionStatus;
@@ -25,18 +28,22 @@ interface UseOllamaCompletionReturn {
 }
 
 /**
- * Ollama 文本补全 Hook
- * 使用 Ollama API 进行代码/文本补全
+ * AI 文本补全 Hook
+ * 支持多种 AI API 提供商（Ollama、OpenAI 等）进行代码/文本补全
  */
-export const useOllamaCompletion = (
-  options: UseOllamaCompletionOptions = {}
-): UseOllamaCompletionReturn => {
+export const useAICompletion = (
+  options: UseAICompletionOptions = {}
+): UseAICompletionReturn => {
   const { onCompletionStart, onCompletionEnd } = options;
 
-  // 合并配置
-  const [config, setConfig] = useState<CompletionConfig>({
-    ...DEFAULT_COMPLETION_CONFIG,
-    ...options.config,
+  // 合并配置，优先使用从配置文件加载的配置
+  const [config, setConfig] = useState<CompletionConfig>(() => {
+    const loadedConfig = getCompletionConfig();
+    return {
+      ...DEFAULT_COMPLETION_CONFIG,
+      ...loadedConfig,
+      ...options.config,
+    };
   });
 
   const [status, setStatus] = useState<CompletionStatus>('idle');
@@ -65,18 +72,6 @@ export const useOllamaCompletion = (
   }, []);
 
   /**
-   * 构建补全提示词
-   * 由于上下文已经只包含当前行，这里直接构建简洁的续写指令
-   */
-  const buildPrompt = useCallback((context: string): string => {
-    // 简洁的 FIM (Fill-in-the-Middle) 风格 prompt
-    // 直接告诉模型这是需要续写的内容
-    return `请续写以下内容，直接输出续写部分，不要重复原文，不要解释：
-
-${context}`;
-  }, []);
-
-  /**
    * 请求补全
    */
   const requestCompletion = useCallback(
@@ -99,39 +94,24 @@ ${context}`;
       const startTime = Date.now();
 
       try {
-        // 构建请求体
-        const requestBody: OllamaGenerateRequest = {
-          model: config.model,
-          prompt: buildPrompt(context),
-          stream: false,
-          options: {
-            temperature: config.temperature,
-            num_predict: config.maxTokens,
-            stop: config.stopSequences,
-            top_p: 0.95,
-          },
-        };
+        let completion = '';
 
-        // 发送请求到 Ollama API
-        // 使用 Vite 代理避免 CORS 问题
-        const response = await fetch('/api/ollama/api/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-          signal: abortControllerRef.current.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Ollama API 错误: ${response.status} ${response.statusText}`);
+        // 根据配置的 provider 选择不同的 API
+        if (config.provider === 'openai') {
+          completion = await requestOpenAICompletion(
+            context,
+            config,
+            abortControllerRef.current.signal
+          );
+        } else {
+          completion = await requestOllamaCompletion(
+            context,
+            config,
+            abortControllerRef.current.signal
+          );
         }
 
-        const data: OllamaGenerateResponse = await response.json();
         const duration = Date.now() - startTime;
-
-        // 处理响应
-        let completion = data.response || '';
 
         // 清理补全文本
         completion = cleanCompletionText(completion, config.stopSequences);
@@ -166,11 +146,11 @@ ${context}`;
         setStatus('error');
         onCompletionEnd?.(result);
 
-        console.error('Ollama 补全请求失败:', err);
+        console.error('补全请求失败:', err);
         return '';
       }
     },
-    [config, buildPrompt, cancelCompletion, onCompletionStart, onCompletionEnd]
+    [config, cancelCompletion, onCompletionStart, onCompletionEnd]
   );
 
   return {
@@ -224,4 +204,96 @@ const cleanCompletionText = (text: string, stopSequences: string[]): string => {
   return cleaned.trimEnd();
 };
 
-export default useOllamaCompletion;
+/**
+ * 请求 Ollama 补全
+ */
+async function requestOllamaCompletion(
+  context: string,
+  config: CompletionConfig,
+  signal: AbortSignal
+): Promise<string> {
+  const prompt = `请续写以下内容，直接输出续写部分，不要重复原文，不要解释：
+
+${context}`;
+
+  const requestBody: OllamaGenerateRequest = {
+    model: config.model,
+    prompt,
+    stream: false,
+    options: {
+      temperature: config.temperature,
+      num_predict: config.maxTokens,
+      stop: config.stopSequences,
+      top_p: 0.95,
+    },
+  };
+
+  // 发送请求到 Ollama API
+  // 使用 Vite 代理避免 CORS 问题
+  const response = await fetch('/api/ollama/api/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama API 错误: ${response.status} ${response.statusText}`);
+  }
+
+  const data: OllamaGenerateResponse = await response.json();
+  return data.response || '';
+}
+
+/**
+ * 请求 OpenAI 补全
+ */
+async function requestOpenAICompletion(
+  context: string,
+  config: CompletionConfig,
+  signal: AbortSignal
+): Promise<string> {
+  if (!config.openai?.apiKey) {
+    throw new Error('OpenAI API Key 未配置');
+  }
+
+  const requestBody: OpenAICompletionRequest = {
+    model: config.model,
+    messages: [
+      {
+        role: 'system',
+        content: '你是一个代码补全助手。请根据用户提供的上下文，续写代码或文本。只输出续写的部分，不要重复原文，不要添加解释。',
+      },
+      {
+        role: 'user',
+        content: `请续写以下内容：\n\n${context}`,
+      },
+    ],
+    temperature: config.temperature,
+    max_tokens: config.maxTokens,
+    stop: config.stopSequences,
+    stream: false,
+  };
+
+  const response = await fetch(`${config.openai.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.openai.apiKey}`,
+    },
+    body: JSON.stringify(requestBody),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API 错误: ${response.status} ${errorText}`);
+  }
+
+  const data: OpenAICompletionResponse = await response.json();
+  return data.choices[0]?.message?.content || '';
+}
+
+export default useAICompletion;

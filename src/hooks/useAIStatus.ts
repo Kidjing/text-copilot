@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { OllamaModel, OllamaModelsResponse } from '../types';
 
-interface UseOllamaStatusReturn {
+interface UseAIStatusReturn {
   isConnected: boolean;
   isChecking: boolean;
   models: OllamaModel[];
@@ -11,9 +11,10 @@ interface UseOllamaStatusReturn {
 }
 
 /**
- * Ollama 服务状态检测 Hook
+ * AI 服务状态检测 Hook
+ * 支持检测 Ollama 等 AI 服务的连接状态
  */
-export const useOllamaStatus = (): UseOllamaStatusReturn => {
+export const useAIStatus = (): UseAIStatusReturn => {
   const [isConnected, setIsConnected] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -84,4 +85,4 @@ export const useOllamaStatus = (): UseOllamaStatusReturn => {
   };
 };
 
-export default useOllamaStatus;
+export default useAIStatus;

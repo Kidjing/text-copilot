@@ -1,2 +1,2 @@
-export { useOllamaCompletion } from './useOllamaCompletion';
-export { useOllamaStatus } from './useOllamaStatus';
+export { useAICompletion } from './useAICompletion';
+export { useAIStatus } from './useAIStatus';
