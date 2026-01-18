@@ -1,6 +1,6 @@
-# AI 智能文本补全演示项目
+# Text Copilot
 
-使用 **Ollama / OpenAI + TipTap** 实现的代码智能补全演示项目。
+使用 **Ollama / OpenAI + TipTap** 实现的智能文本补全编辑器。
 
 ## 功能特点
 
@@ -38,7 +38,7 @@ brew install ollama
 # 下载 Qwen2.5-Coder 模型 (推荐)
 ollama pull qwen2.5-coder:1.5b
 
-# 或下载其他代码模型
+# 或下载其他模型
 ollama pull codellama:7b
 ollama pull deepseek-coder:1.3b
 ```
@@ -128,7 +128,7 @@ VITE_OPENAI_MODEL=gpt-35-turbo
 
 ## 使用说明
 
-1. **输入代码** - 在编辑器中输入代码
+1. **输入文本** - 在编辑器中输入文本
 2. **等待补全** - 停止输入约 500ms 后，AI 会自动生成补全建议
 3. **查看建议** - 补全建议以灰色斜体文本显示在光标后
 4. **采纳补全** - 按 `Tab` 键采纳补全
@@ -138,7 +138,6 @@ VITE_OPENAI_MODEL=gpt-35-turbo
 
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
-| 编程语言 | 代码高亮和补全上下文 | JavaScript |
 | 温度 | 控制生成的随机性 (0-1) | 0.2 |
 | 最大补全长度 | 单次补全的最大 Token 数 | 64 |
 | 触发延迟 | 停止输入后等待多久触发补全 | 500ms |

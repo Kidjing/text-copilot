@@ -194,7 +194,7 @@ const App = () => {
       <main className="flex-1 overflow-hidden p-4">
         <div className="h-full overflow-hidden rounded-lg border border-gray-700">
           <RichTextEditor
-            defaultValue={EXAMPLE_TEXT}
+            // defaultValue={EXAMPLE_TEXT}
             onCompletionRequest={handleCompletionRequest}
             isLoading={completionStatus === 'loading'}
             debounceMs={debounceMs}
